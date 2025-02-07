@@ -2,23 +2,24 @@
 Word Vectors module
 """
 
+import json
 import logging
 import os
 import tempfile
 
-from errno import ENOENT
 from multiprocessing import Pool
 
 import numpy as np
 
-# Conditionally import Word Vector libraries as they aren't installed by default
-try:
-    import fasttext
-    from pymagnitude import converter, Magnitude
+from transformers.utils import cached_file
 
-    WORDS = True
+# Conditional import
+try:
+    from staticvectors import Database, StaticVectors
+
+    STATICVECTORS = True
 except ImportError:
-    WORDS = False
+    STATICVECTORS = False
 
 from ..pipeline import Tokenizer
 
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Multiprocessing helper methods
 # pylint: disable=W0603
-VECTORS = None
+PARAMETERS, VECTORS = None, None
 
 
 def create(config, scoring):
@@ -41,10 +42,11 @@ def create(config, scoring):
         scoring: scoring instance
     """
 
+    global PARAMETERS
     global VECTORS
 
-    # Create a global embedding object using configuration and saved
-    VECTORS = WordVectors(config, scoring, None)
+    # Store model parameters for lazy loading
+    PARAMETERS, VECTORS = (config, scoring, None), None
 
 
 def transform(document):
@@ -58,6 +60,11 @@ def transform(document):
         (id, embedding)
     """
 
+    # Lazy load vectors model
+    global VECTORS
+    if not VECTORS:
+        VECTORS = WordVectors(*PARAMETERS)
+
     return (document[0], VECTORS.transform(document))
 
 
@@ -66,32 +73,68 @@ class WordVectors(Vectors):
     Builds vectors using weighted word embeddings.
     """
 
+    @staticmethod
+    def ismodel(path):
+        """
+        Checks if path is a WordVectors model.
+
+        Args:
+            path: input path
+
+        Returns:
+            True if this is a WordVectors model, False otherwise
+        """
+
+        # Check if this is a SQLite database
+        if WordVectors.isdatabase(path):
+            return True
+
+        try:
+            # Download file and parse JSON
+            path = cached_file(path_or_repo_id=path, filename="config.json")
+            if path:
+                with open(path, encoding="utf-8") as f:
+                    config = json.load(f)
+                    return config.get("model_type") == "staticvectors"
+
+        # Ignore this error - invalid repo or directory
+        except OSError:
+            pass
+
+        return False
+
+    @staticmethod
+    def isdatabase(path):
+        """
+        Checks if this is a SQLite database file which is the file format used for word vectors databases.
+
+        Args:
+            path: path to check
+
+        Returns:
+            True if this is a SQLite database
+        """
+
+        return isinstance(path, str) and Database.isdatabase(path)
+
     def __init__(self, config, scoring, models):
         # Check before parent constructor since it calls loadmodel
-        if not WORDS:
-            # Raise error if trying to create Word Vectors without vectors extra
-            raise ImportError(
-                'Word vector models are not available - install "vectors" extra to enable. Otherwise, specify '
-                + 'method="transformers" to use transformer backed models'
-            )
+        if not STATICVECTORS:
+            raise ImportError('staticvectors is not available - install "vectors" extra to enable')
 
         super().__init__(config, scoring, models)
 
     def loadmodel(self, path):
-        # Ensure that vector path exists
-        if not path or not os.path.isfile(path):
-            raise IOError(ENOENT, "Vector model file not found", path)
-
-        # Load magnitude model. If this is a training run (uninitialized config), block until vectors are fully loaded
-        return Magnitude(path, case_insensitive=True, blocking=not self.initialized)
+        return StaticVectors(path)
 
     def encode(self, data):
         # Iterate over each data element, tokenize (if necessary) and build an aggregated embeddings vector
         embeddings = []
         for tokens in data:
-            # Convert to tokens if necessary
+            # Convert to tokens, if necessary. If tokenized list is empty, use input string.
             if isinstance(tokens, str):
-                tokens = Tokenizer.tokenize(tokens)
+                tokenlist = Tokenizer.tokenize(tokens)
+                tokens = tokenlist if tokenlist else [tokens]
 
             # Generate weights for each vector using a scoring method
             weights = self.scoring.weights(tokens) if self.scoring else None
@@ -108,9 +151,13 @@ class WordVectors(Vectors):
 
         return np.array(embeddings, dtype=np.float32)
 
-    def index(self, documents, batchsize=1):
+    def index(self, documents, batchsize=500):
+        # Derive number of parallel processes
+        parallel = self.config.get("parallel", True)
+        parallel = os.cpu_count() if parallel and isinstance(parallel, bool) else int(parallel)
+
         # Use default single process indexing logic
-        if "parallel" in self.config and not self.config["parallel"]:
+        if not parallel:
             return super().index(documents, batchsize)
 
         # Customize indexing logic with multiprocessing pool to efficiently build vectors
@@ -120,11 +167,11 @@ class WordVectors(Vectors):
         args = (self.config, self.scoring)
 
         # Convert all documents to embedding arrays, stream embeddings to disk to control memory usage
-        with Pool(os.cpu_count(), initializer=create, initargs=args) as pool:
+        with Pool(parallel, initializer=create, initargs=args) as pool:
             with tempfile.NamedTemporaryFile(mode="wb", suffix=".npy", delete=False) as output:
                 stream = output.name
                 embeddings = []
-                for uid, embedding in pool.imap(transform, documents):
+                for uid, embedding in pool.imap(transform, documents, self.encodebatch):
                     if not dimensions:
                         # Set number of dimensions for embeddings
                         dimensions = embedding.shape[0]
@@ -156,67 +203,8 @@ class WordVectors(Vectors):
             word vectors array
         """
 
-        return self.model.query(tokens)
+        return self.model.embeddings(tokens)
 
     def tokens(self, data):
         # Skip tokenization rules
         return data
-
-    @staticmethod
-    def isdatabase(path):
-        """
-        Checks if this is a SQLite database file which is the file format used for word vectors databases.
-
-        Args:
-            path: path to check
-
-        Returns:
-            True if this is a SQLite database
-        """
-
-        if isinstance(path, str) and os.path.isfile(path) and os.path.getsize(path) >= 100:
-            # Read 100 byte SQLite header
-            with open(path, "rb") as f:
-                header = f.read(100)
-
-            # Check for SQLite header
-            return header.startswith(b"SQLite format 3\000")
-
-        return False
-
-    @staticmethod
-    def build(data, size, mincount, path):
-        """
-        Builds fastText vectors from a file.
-
-        Args:
-            data: path to input data file
-            size: number of vector dimensions
-            mincount: minimum number of occurrences required to register a token
-            path: path to output file
-        """
-
-        # Train on data file using largest dimension size
-        model = fasttext.train_unsupervised(data, dim=size, minCount=mincount)
-
-        # Output file path
-        logger.info("Building %d dimension model", size)
-
-        # Output vectors in vec/txt format
-        with open(path + ".txt", "w", encoding="utf-8") as output:
-            words = model.get_words()
-            output.write(f"{len(words)} {model.get_dimension()}\n")
-
-            for word in words:
-                # Skip end of line token
-                if word != "</s>":
-                    vector = model.get_word_vector(word)
-                    data = ""
-                    for v in vector:
-                        data += " " + str(v)
-
-                    output.write(word + data + "\n")
-
-        # Build magnitude vectors database
-        logger.info("Converting vectors to magnitude format")
-        converter.convert(path + ".txt", path + ".magnitude", subword=True)
