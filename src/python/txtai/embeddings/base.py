@@ -4,7 +4,6 @@ Embeddings module
 
 import json
 import os
-import shutil
 import tempfile
 
 import numpy as np
@@ -356,8 +355,8 @@ class Embeddings:
 
     def search(self, query, limit=None, weights=None, index=None, parameters=None, graph=False):
         """
-        Finds documents most similar to the input query. This method will run either an index search
-        or an index + database search depending on if a database is available.
+        Finds documents most similar to the input query. This method runs an index search, index + database search
+        or a graph search, depending on the embeddings configuration and query.
 
         Args:
             query: input query
@@ -378,8 +377,8 @@ class Embeddings:
 
     def batchsearch(self, queries, limit=None, weights=None, index=None, parameters=None, graph=False):
         """
-        Finds documents most similar to the input queries. This method will run either an index search
-        or an index + database search depending on if a database is available.
+        Finds documents most similar to the input query. This method runs an index search, index + database search
+        or a graph search, depending on the embeddings configuration and query.
 
         Args:
             queries: input queries
@@ -402,7 +401,7 @@ class Embeddings:
         results = Search(self, indexids=graph)(queries, limit, weights, index, parameters)
 
         # Create subgraphs using results, if necessary
-        return [self.graph.filter(x) for x in results] if graph else results
+        return [self.graph.filter(x) if isinstance(x, list) else x for x in results] if graph else results
 
     def similarity(self, query, data):
         """
@@ -618,12 +617,6 @@ class Embeddings:
             # Create output directory, if necessary
             os.makedirs(path, exist_ok=True)
 
-            # Copy vectors model
-            if self.config.get("storevectors"):
-                shutil.copyfile(self.config["path"], os.path.join(path, os.path.basename(self.config["path"])))
-
-                self.config["path"] = os.path.basename(self.config["path"])
-
             # Save index configuration
             Configuration().save(self.config, path)
 
@@ -820,6 +813,10 @@ class Embeddings:
         # Expand sparse index shortcuts
         if not self.config.get("scoring") and any(self.config.get(key) for key in ["keyword", "hybrid"]):
             self.config["scoring"] = {"method": "bm25", "terms": True, "normalize": True}
+
+        # Expand graph shortcuts
+        if self.config.get("graph") is True:
+            self.config["graph"] = {}
 
         # Check if default model should be loaded
         if not self.model and self.defaultallowed():

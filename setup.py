@@ -43,13 +43,13 @@ extras["api"] = [
     "uvicorn>=0.12.1",
 ]
 
-extras["cloud"] = ["apache-libcloud>=3.3.1"]
+extras["cloud"] = ["apache-libcloud>=3.3.1", "fasteners>=0.14.1"]
 
 extras["console"] = ["rich>=12.0.1"]
 
 extras["database"] = ["duckdb>=0.7.1", "pillow>=7.1.2", "sqlalchemy>=2.0.20"]
 
-extras["graph"] = ["grand-cypher>=0.6.0", "grand-graph>=0.6.0", "networkx>=2.6.3", "python-louvain>=0.16", "sqlalchemy>=2.0.20"]
+extras["graph"] = ["grand-cypher>=0.6.0", "grand-graph>=0.6.0", "networkx>=2.7.1", "sqlalchemy>=2.0.20"]
 
 extras["model"] = ["onnx>=1.11.0", "onnxruntime>=1.11.0"]
 
@@ -59,17 +59,17 @@ extras["pipeline-audio"] = [
     "scipy>=1.4.1",
     "sounddevice>=0.5.0",
     "soundfile>=0.10.3.post1",
-    "ttstokenizer>=1.0.0",
+    "ttstokenizer>=1.1.0",
     "webrtcvad-wheels>=2.0.14",
 ]
 
-extras["pipeline-data"] = ["beautifulsoup4>=4.9.3", "docling>=2.8.2", "nltk>=3.5", "pandas>=1.1.0", "tika>=1.24"]
+extras["pipeline-data"] = ["beautifulsoup4>=4.9.3", "chonkie>=0.4.1", "docling>=2.8.2", "nltk>=3.5", "pandas>=1.1.0", "tika>=1.24"]
 
 extras["pipeline-image"] = ["imagehash>=4.2.1", "pillow>=7.1.2", "timm>=0.4.12"]
 
 extras["pipeline-llm"] = ["litellm>=1.37.16", "llama-cpp-python>=0.2.75"]
 
-extras["pipeline-text"] = ["fasttext>=0.9.2", "sentencepiece>=0.1.91"]
+extras["pipeline-text"] = ["gliner>=0.2.16", "sentencepiece>=0.1.91", "staticvectors>=0.2.0"]
 
 extras["pipeline-train"] = [
     "accelerate>=0.26.0",
@@ -93,14 +93,13 @@ extras["pipeline"] = (
 extras["scoring"] = ["sqlalchemy>=2.0.20"]
 
 extras["vectors"] = [
-    "fasttext>=0.9.2",
     "litellm>=1.37.16",
     "llama-cpp-python>=0.2.75",
     "model2vec>=0.3.0",
-    "pymagnitude-lite>=0.1.43",
     "scikit-learn>=0.23.1",
     "sentence-transformers>=2.2.0",
     "skops>=0.9.0",
+    "staticvectors>=0.2.0",
 ]
 
 extras["workflow"] = [
@@ -131,7 +130,7 @@ extras["all"] = (
 
 setup(
     name="txtai",
-    version="8.2.0",
+    version="8.4.0",
     author="NeuML",
     description="All-in-one open-source embeddings database for semantic search, LLM orchestration and language model workflows",
     long_description=DESCRIPTION,

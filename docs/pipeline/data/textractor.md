@@ -3,13 +3,14 @@
 ![pipeline](../../images/pipeline.png#only-light)
 ![pipeline](../../images/pipeline-dark.png#only-dark)
 
-The Textractor pipeline extracts and splits text from documents.
+The Textractor pipeline extracts and splits text from documents. This pipeline extends the [Segmentation](../segmentation) pipeline.
 
 Each document goes through the following process.
 
 - Content is retrieved if it's not local
 - If the document `mime-type` isn't plain text or HTML, it's converted to HTML via the [FiletoHTML](../filetohtml) pipeline
-- HTML is converted to Markdown via the [HTMLToMarkdown](../htmltomd) pipeline and returned
+- HTML is converted to Markdown via the [HTMLToMarkdown](../htmltomd) pipeline
+- Content is split/chunked based on the [segmentation parameters](../segmentation/#txtai.pipeline.Segmentation.__init__) and returned
 
 The [backend](../filetohtml/#txtai.pipeline.FileToHTML.__init__) parameter sets the FileToHTML pipeline backend. If a backend isn't available, this pipeline assumes input is HTML content and only converts it to Markdown.
 
@@ -32,6 +33,7 @@ See the link below for a more detailed example.
 | Notebook  | Description  |       |
 |:----------|:-------------|------:|
 | [Extract text from documents](https://github.com/neuml/txtai/blob/master/examples/10_Extract_text_from_documents.ipynb) | Extract text from PDF, Office, HTML and more | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neuml/txtai/blob/master/examples/10_Extract_text_from_documents.ipynb) |
+| [Chunking your data for RAG](https://github.com/neuml/txtai/blob/master/examples/73_Chunking_your_data_for_RAG.ipynb) | Extract, chunk and index content for effective retrieval | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neuml/txtai/blob/master/examples/73_Chunking_your_data_for_RAG.ipynb) |
 
 ## Configuration-driven example
 

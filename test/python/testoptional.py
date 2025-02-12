@@ -5,8 +5,9 @@ Optional module tests
 import sys
 import unittest
 
-# pylint: disable=C0415,W0611
-from transformers import Trainer
+# pylint: disable=C0415,W0611,W0621
+import timm
+import txtai
 
 
 class TestOptional(unittest.TestCase):
@@ -23,11 +24,12 @@ class TestOptional(unittest.TestCase):
         modules = [
             "annoy",
             "bs4",
+            "chonkie",
             "croniter",
             "docling.document_converter",
             "duckdb",
             "fastapi",
-            "fasttext",
+            "gliner",
             "grand-cypher",
             "grand-graph",
             "hnswlib",
@@ -53,6 +55,7 @@ class TestOptional(unittest.TestCase):
             "soundfile",
             "sqlalchemy",
             "sqlite_vec",
+            "staticvectors",
             "tika",
             "ttstokenizer",
             "xmltodict",
@@ -186,6 +189,7 @@ class TestOptional(unittest.TestCase):
             AudioMixer,
             AudioStream,
             Caption,
+            Entity,
             FileToHTML,
             HFOnnx,
             HFTrainer,
@@ -212,6 +216,9 @@ class TestOptional(unittest.TestCase):
 
         with self.assertRaises(ImportError):
             Caption()
+
+        with self.assertRaises(ImportError):
+            Entity("neuml/gliner-bert-tiny")
 
         with self.assertRaises(ImportError):
             FileToHTML(backend="docling")
@@ -247,7 +254,10 @@ class TestOptional(unittest.TestCase):
             Objects()
 
         with self.assertRaises(ImportError):
-            Segmentation()
+            Segmentation(sentences=True)
+
+        with self.assertRaises(ImportError):
+            Segmentation(chunker="token")
 
         with self.assertRaises(ImportError):
             Tabular()
@@ -295,6 +305,10 @@ class TestOptional(unittest.TestCase):
 
         with self.assertRaises(ImportError):
             VectorsFactory.create({"method": "words"}, None)
+
+        # Test default model
+        model = VectorsFactory.create({"path": "sentence-transformers/all-MiniLM-L6-v2"}, None)
+        self.assertIsNotNone(model)
 
     def testWorkflow(self):
         """
